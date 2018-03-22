@@ -1,0 +1,196 @@
+{
+  parserClass="org.nixdea.parser.NixParser"
+  parserUtilClass="org.nixdea.parser.NixParserUtil"
+  extends="com.intellij.extapi.psi.ASTWrapperPsiElement"
+  extendedPin=false
+  psiClassPrefix="Nix"
+  psiImplClassSuffix="Impl"
+  psiPackage="org.nixdea.psi"
+  psiImplPackage="org.nixdea.psi.impl"
+
+  elementTypeHolderClass="org.nixdea.psi.NixTypes"
+  elementTypeClass="org.nixdea.psi.NixElementType"
+  tokenTypeClass="org.nixdea.psi.NixTokenType"
+
+  psiImplUtilClass="org.nixdea.parser.NixParserUtil"
+
+  parserImports=[
+    "static com.intellij.lang.parser.GeneratedParserUtilBase.*"
+  ]
+
+  generate=[tokenAccessors="yes"]
+  tokens = [
+    ASSIGN = '='
+    LPAREN = '('
+    RPAREN = ')'
+    LCURLY = '{'
+    RCURLY = '}'
+    LBRAC = '['
+    RBRAC = ']'
+    DOLLAR_CURLY = '${'
+    DOLLAR = '$'
+    IS = '?'
+    NAMED = '@'
+    COLON = ':'
+    SEMI = ';'
+    AND = '&&'
+    OR = '||'
+    NOT = '!'
+    EQ = '=='
+    NEQ = '!='
+    LEQ = '<='
+    GEQ = '>='
+    LT = '<'
+    GT = '>'
+    PLUS = '+'
+    MINUS = '-'
+    DIVIDE = '/'
+    TIMES = '*'
+    CONCAT = '++'
+    DOT = '.'
+    COMMA = ','
+    IMPL = '->'
+    UPDATE = '//'
+
+    ASSERT = 'assert'
+    IF = 'if'
+    ELSE = 'else'
+    THEN = 'then'
+    WITH = 'with'
+    LET = 'let'
+    IN = 'in'
+    REC = 'rec'
+    OR_KW = 'or'
+    ELLIPSIS = '...'
+    INHERIT = 'inherit'
+    REQUIRE = 'require'
+    REQUIRES = 'requires'
+    IMPORT = 'import'
+    IMPORTS = 'imports'
+
+    SCOMMENT = 'regexp:#[^\r\n]*'
+    MCOMMENT = 'regexp:/\*([^*]|\*[^/])*\*/'
+
+    INT = "regexp:[0-9]+"
+    BOOL = "regexp:(true|false)"
+    ID = "regexp:[a-zA-Z][a-zA-Z_0-9'-]*"
+
+    /* filesystem, relative or absolute */
+    PATH = "regexp:[a-zA-Z0-9._\-+]*(/[a-zA-Z0-9._\-+]+)+"
+    /* search path, resolve first segment against NIX_PATH */
+    SPATH = "regexp:<[a-zA-Z0-9._\-+]+(/[a-zA-Z0-9._\-+]+)*>"
+
+    /* home path, resolve to relative users home */
+    HPATH = "regexp:~(/[a-zA-Z0-9._\-+]+)+"
+    /* somewhere else */
+    URI = "regexp:[a-zA-Z][a-zA-Z0-9+\-.]*:[a-zA-Z0-9%/?:@&=+$,\-_.!~*']+"
+
+    QUOT_OPEN = "\""
+    QUOT_CLOSE = "\""
+
+    IND_STRING_OPEN = "''"
+    IND_STRING_CLOSE = "''"
+  ]
+}
+
+nixFile ::= expr
+
+expr ::= lambda
+       | IF expr THEN expr ELSE expr
+       | WITH expr SEMI expr
+       | ASSERT expr_op SEMI expr
+       | LET binds IN expr
+       | expr_op
+
+lambda ::= (fn_lambda | bn_lambda | param_set | ID) COLON expr
+fn_lambda ::= ID NAMED param_set
+bn_lambda ::= param_set NAMED ID
+param_set ::= LCURLY params RCURLY
+
+expr_op ::= logical bool_expr* | unary_op expr_op
+
+left bool_expr ::= bool_op logical
+private bool_op ::= AND | OR | IMPL | OR_KW
+logical ::= relative rel_expr*
+
+left rel_expr ::= rel_op relative
+private rel_op ::= EQ | NEQ | LEQ | GEQ | GT | LT
+relative ::= factor add_expr*
+
+left add_expr ::= add_op factor
+private add_op ::= PLUS | MINUS | CONCAT | UPDATE
+factor ::= primary mul_expr*
+
+left mul_expr ::= mul_op primary
+private mul_op ::= TIMES | DIVIDE
+primary ::= expr_app
+
+unary_op ::= NOT | MINUS
+
+expr_app ::= expr_simple+
+expr_simple ::=
+                literal_simple_string
+              | doc_string
+              | REC bind_set
+              | list
+              | import_stmt
+              | literal
+              | bind_or_select
+              | eval_or_select
+              | defval
+              | attr_path
+              | unary_op expr_op
+
+cont_path ::= DOT attr_path
+
+eval_or_select ::= eval_expr cont_path?
+eval_expr ::= LPAREN expr RPAREN
+
+bind_or_select ::= bind_set cont_path?
+bind_set ::= LCURLY binds? RCURLY
+
+list ::= LBRAC expr_list RBRAC
+expr_list ::= list_expr*;
+list_expr ::= eval_or_select | bind_or_select | attr_path | literal_simple_string | literal
+
+literal_simple_string ::= QUOT_OPEN string_parts QUOT_CLOSE
+doc_string ::= IND_STRING_OPEN ind_string_parts IND_STRING_CLOSE
+
+literal ::= INT | BOOL | PATH | SPATH | HPATH | URI | STR
+nix_init ::= DOLLAR_CURLY expr RCURLY
+
+string_parts ::= (STR | nix_init)*
+
+ind_string_parts ::= (IND_STR | nix_init)*
+
+binds ::= binding+
+binding ::= (require_expr | inherit_attrs | attr_assign) SEMI
+
+require_expr ::= (REQUIRE|REQUIRES|IMPORTS) ASSIGN LBRAC path_expr* RBRAC
+
+import_stmt ::= IMPORT path_expr call_args?
+
+call_args ::= LCURLY binds? RCURLY
+
+path_expr ::= PATH | HPATH | SPATH | list_expr
+
+attr_assign ::= attr_path ASSIGN expr
+
+inherit_attrs ::= INHERIT (LPAREN expr RPAREN)? attrs
+
+attrs ::= attr*
+
+attr_path ::= attr (DOT attr)*
+
+attr ::= ID | QUOT_OPEN string_attr QUOT_CLOSE
+
+string_attr ::= STR
+              | nix_init
+
+params ::= param (COMMA param)*
+
+param ::= defval
+         | ID
+         | ELLIPSIS
+
+defval ::= ID IS expr

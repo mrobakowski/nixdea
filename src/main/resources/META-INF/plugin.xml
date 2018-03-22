@@ -1,0 +1,22 @@
+<idea-plugin>
+    <id>org.nixdea</id>
+    <name>Nixdea</name>
+    <version>0.0.1</version>
+
+    <description><![CDATA[<h1>Nixdea</h1>]]></description>
+
+    <change-notes><![CDATA[]]></change-notes>
+
+    <idea-version since-build="172"/>
+
+    <depends>com.intellij.modules.lang</depends>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileTypeFactory implementation="org.nixdea.NixFileTypeFactory"/>
+        <lang.parserDefinition language="Nix" implementationClass="org.nixdea.parser.NixParserDefinition" />
+        <!--<lang.syntaxHighlighterFactory language="Nix" implementationClass="org.nixdea.editor.NixSyntaxHighlighterFactory"/>-->
+        <!--<lang.braceMatcher language="Nix" implementationClass="org.nixdea.editor.NixBraceMatcher"/>-->
+    </extensions>
+    <application-components />
+    <project-components />
+    <actions />
+</idea-plugin>

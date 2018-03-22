@@ -2,3 +2,5 @@
 build
 .idea
 target
+deps
+src/gen
