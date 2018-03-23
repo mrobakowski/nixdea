@@ -21,6 +21,9 @@
 
   generate=[tokenAccessors="yes"]
   tokens = [
+    space='regexp:\s+'
+    comment='regexp:#.*'
+
     ASSIGN = '='
     LPAREN = '('
     RPAREN = ')'
@@ -73,14 +76,9 @@
     BOOL = "regexp:(true|false)"
     ID = "regexp:[a-zA-Z][a-zA-Z_0-9'-]*"
 
-    /* filesystem, relative or absolute */
     PATH = "regexp:[a-zA-Z0-9._\-+]*(/[a-zA-Z0-9._\-+]+)+"
-    /* search path, resolve first segment against NIX_PATH */
     SPATH = "regexp:<[a-zA-Z0-9._\-+]+(/[a-zA-Z0-9._\-+]+)*>"
-
-    /* home path, resolve to relative users home */
     HPATH = "regexp:~(/[a-zA-Z0-9._\-+]+)+"
-    /* somewhere else */
     URI = "regexp:[a-zA-Z][a-zA-Z0-9+\-.]*:[a-zA-Z0-9%/?:@&=+$,\-_.!~*']+"
 
     QUOT_OPEN = "\""
@@ -101,16 +99,16 @@ expr ::= if_expr
        | let_expr
        | op_expr
 
-if_expr ::= IF expr THEN expr ELSE expr { extends = "expr" }
-with_expr ::= WITH expr SEMI expr { extends= "expr" }
-assert_expr ::= ASSERT op_expr SEMI expr { extends = "expr" }
-let_expr ::= LET binds IN expr { extends = "expr" }
+if_expr ::= IF expr THEN expr ELSE expr { extends="expr" pin=1 }
+with_expr ::= WITH expr SEMI expr { extends="expr" pin=1 }
+assert_expr ::= ASSERT op_expr SEMI expr { extends="expr" pin=1 }
+let_expr ::= LET binds IN expr { extends="expr" pin=1 }
 
-lambda ::= param COLON expr { extends = "op_expr" }
+lambda ::= param COLON expr { extends="op_expr" pin=2 }
 param ::= (ID NAMED param_set | param_set NAMED ID | param_set | ID)
 param_set ::= param_set_strict | param_set_ellipsis
-private param_set_strict ::= LCURLY (param_set_attrs COMMA?)?  RCURLY
-private param_set_ellipsis ::= LCURLY (param_set_attrs COMMA)? ELLIPSIS RCURLY
+private param_set_strict ::= LCURLY (param_set_attrs COMMA?)? RCURLY { pin=1 }
+private param_set_ellipsis ::= LCURLY (param_set_attrs COMMA)? ELLIPSIS RCURLY { pin=1 }
 private param_set_attrs ::= param_default (COMMA param_default)*
 
 private param_default ::= ID [IS expr]
@@ -133,19 +131,19 @@ op_expr ::= lambda
           | call_op_expr
           | import_op_expr
           | select_op_expr
-          { extends = "expr" }
+          { extends="expr" }
 
 private mul_group ::= mul_op_expr | div_op_expr
 private add_group ::= add_op_expr | sub_op_expr
 private comp_group ::= lt_op_expr | gt_op_expr | lte_op_expr | gte_op_expr
 private eq_group ::= eq_op_expr | neq_op_expr
 
-select_op_expr ::= op_expr (DOT attr)+ [ OR_KW (paren_op_expr | select_op_expr | literal ) ]
+select_op_expr ::= op_expr (DOT attr)+ [ OR_KW (paren_op_expr | select_op_expr | literal) ]
 import_op_expr ::= IMPORT op_expr
-call_op_expr ::= op_expr (paren_op_expr | select_op_expr | literal )
+call_op_expr ::= op_expr (paren_op_expr | select_op_expr | literal)
 arith_negation_op_expr ::= MINUS op_expr
 attr_test_op_expr ::= op_expr IS attr (DOT attr)*
-list_concat_op_expr ::= op_expr CONCAT op_expr { rightAssociative = true }
+list_concat_op_expr ::= op_expr CONCAT op_expr { rightAssociative=true }
 
 mul_op_expr ::= op_expr TIMES op_expr
 div_op_expr ::= op_expr DIVIDE op_expr
@@ -154,7 +152,7 @@ add_op_expr ::= op_expr PLUS op_expr
 sub_op_expr ::= op_expr MINUS op_expr
 
 bool_negation_op_expr ::= NOT op_expr
-set_union_op_expr ::= op_expr UPDATE op_expr { rightAssociative = true }
+set_union_op_expr ::= op_expr UPDATE op_expr { rightAssociative=true }
 
 lt_op_expr ::= op_expr LT op_expr
 gt_op_expr ::= op_expr GT op_expr
@@ -174,10 +172,10 @@ attr ::= ID | DOLLAR_CURLY expr RCURLY | string
 literal ::= ID | INT | BOOL | list | set | path_lit | string { extends="op_expr" }
 
 list ::= LBRAC expr* RBRAC { extends="literal" }
-set ::= REC? LCURLY binds? RCURLY { extends="literal" }
+set ::= REC? LCURLY binds? RCURLY { extends="literal" pin=2 }
 path_lit ::= PATH | SPATH | HPATH { extends="literal" }
 
-string ::= simple_string | ind_string | uri_string { extends = "literal"}
+string ::= simple_string | ind_string | uri_string { extends="literal"}
 uri_string ::= URI { extends="string" }
 simple_string ::= QUOT_OPEN (STR | antiquotation)* QUOT_CLOSE { extends="string" }
 ind_string ::= IND_STRING_OPEN (IND_STR | antiquotation)* IND_STRING_CLOSE { extends="string" }
@@ -186,5 +184,5 @@ antiquotation ::= DOLLAR_CURLY expr RCURLY
 binds ::= binding+
 
 binding ::= (inherit_attrs | attr_assign) SEMI
-inherit_attrs ::= INHERIT (LPAREN expr RPAREN)? attr* { extends = "binding" }
-attr_assign ::= attr (DOT attr)* ASSIGN expr { extends = "binding" }
+inherit_attrs ::= INHERIT (LPAREN expr RPAREN)? attr* { extends="binding" }
+attr_assign ::= attr (DOT attr)* ASSIGN expr { extends="binding" }
