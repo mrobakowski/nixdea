@@ -14,54 +14,6 @@ import org.nixdea.stubs.NixFileStub
 class NixFile(
         fileViewProvider: FileViewProvider
 ) : PsiFileBase(fileViewProvider, NixLanguage), NixExpr {
-    override fun getBinds(): NixBinds? {
-        TODO("not implemented") 
-    }
-
-    override fun getExprList(): MutableList<NixExpr> {
-        TODO("not implemented") 
-    }
-
-    override fun getExprOp(): NixExprOp? {
-        TODO("not implemented") 
-    }
-
-    override fun getLambda(): NixLambda? {
-        TODO("not implemented") 
-    }
-
-    override fun getAssert(): PsiElement? {
-        TODO("not implemented") 
-    }
-
-    override fun getElse(): PsiElement? {
-        TODO("not implemented") 
-    }
-
-    override fun getIf(): PsiElement? {
-        TODO("not implemented") 
-    }
-
-    override fun getIn(): PsiElement? {
-        TODO("not implemented") 
-    }
-
-    override fun getLet(): PsiElement? {
-        TODO("not implemented") 
-    }
-
-    override fun getSemi(): PsiElement? {
-        TODO("not implemented") 
-    }
-
-    override fun getThen(): PsiElement? {
-        TODO("not implemented") 
-    }
-
-    override fun getWith(): PsiElement? {
-        TODO("not implemented") 
-    }
-
     override fun getReference(): PsiReference? = null
 
     override fun getFileType(): FileType = NixFileType

@@ -15,6 +15,7 @@
   psiImplUtilClass="org.nixdea.parser.NixParserUtil"
 
   parserImports=[
+    "static com.intellij.psi.TokenType.WHITE_SPACE"
     "static com.intellij.lang.parser.GeneratedParserUtilBase.*"
   ]
 
@@ -63,10 +64,7 @@
     OR_KW = 'or'
     ELLIPSIS = '...'
     INHERIT = 'inherit'
-    REQUIRE = 'require'
-    REQUIRES = 'requires'
     IMPORT = 'import'
-    IMPORTS = 'imports'
 
     SCOMMENT = 'regexp:#[^\r\n]*'
     MCOMMENT = 'regexp:/\*([^*]|\*[^/])*\*/'
@@ -91,106 +89,102 @@
     IND_STRING_OPEN = "''"
     IND_STRING_CLOSE = "''"
   ]
+
+  extends(".*_op_expr")=op_expr
 }
 
 nixFile ::= expr
 
-expr ::= lambda
-       | IF expr THEN expr ELSE expr
-       | WITH expr SEMI expr
-       | ASSERT expr_op SEMI expr
-       | LET binds IN expr
-       | expr_op
+expr ::= if_expr
+       | with_expr
+       | assert_expr
+       | let_expr
+       | op_expr
 
-lambda ::= (fn_lambda | bn_lambda | param_set | ID) COLON expr
-fn_lambda ::= ID NAMED param_set
-bn_lambda ::= param_set NAMED ID
-param_set ::= LCURLY params RCURLY
+if_expr ::= IF expr THEN expr ELSE expr { extends = "expr" }
+with_expr ::= WITH expr SEMI expr { extends= "expr" }
+assert_expr ::= ASSERT op_expr SEMI expr { extends = "expr" }
+let_expr ::= LET binds IN expr { extends = "expr" }
 
-expr_op ::= logical bool_expr* | unary_op expr_op
+lambda ::= param COLON expr { extends = "op_expr" }
+param ::= (ID NAMED param_set | param_set NAMED ID | param_set | ID)
+param_set ::= param_set_strict | param_set_ellipsis
+private param_set_strict ::= LCURLY (param_set_attrs COMMA?)?  RCURLY
+private param_set_ellipsis ::= LCURLY (param_set_attrs COMMA)? ELLIPSIS RCURLY
+private param_set_attrs ::= param_default (COMMA param_default)*
 
-left bool_expr ::= bool_op logical
-private bool_op ::= AND | OR | IMPL | OR_KW
-logical ::= relative rel_expr*
+private param_default ::= ID [IS expr]
 
-left rel_expr ::= rel_op relative
-private rel_op ::= EQ | NEQ | LEQ | GEQ | GT | LT
-relative ::= factor add_expr*
+op_expr ::= lambda
+          | literal
+          | paren_op_expr
+          | implies_op_expr
+          | or_op_expr
+          | and_op_expr
+          | eq_group
+          | comp_group
+          | set_union_op_expr
+          | bool_negation_op_expr
+          | add_group
+          | mul_group
+          | list_concat_op_expr
+          | attr_test_op_expr
+          | arith_negation_op_expr
+          | call_op_expr
+          | import_op_expr
+          | select_op_expr
+          { extends = "expr" }
 
-left add_expr ::= add_op factor
-private add_op ::= PLUS | MINUS | CONCAT | UPDATE
-factor ::= primary mul_expr*
+private mul_group ::= mul_op_expr | div_op_expr
+private add_group ::= add_op_expr | sub_op_expr
+private comp_group ::= lt_op_expr | gt_op_expr | lte_op_expr | gte_op_expr
+private eq_group ::= eq_op_expr | neq_op_expr
 
-left mul_expr ::= mul_op primary
-private mul_op ::= TIMES | DIVIDE
-primary ::= expr_app
+select_op_expr ::= op_expr (DOT attr)+ [ OR_KW (paren_op_expr | select_op_expr | literal ) ]
+import_op_expr ::= IMPORT op_expr
+call_op_expr ::= op_expr (paren_op_expr | select_op_expr | literal )
+arith_negation_op_expr ::= MINUS op_expr
+attr_test_op_expr ::= op_expr IS attr (DOT attr)*
+list_concat_op_expr ::= op_expr CONCAT op_expr { rightAssociative = true }
 
-unary_op ::= NOT | MINUS
+mul_op_expr ::= op_expr TIMES op_expr
+div_op_expr ::= op_expr DIVIDE op_expr
 
-expr_app ::= expr_simple+
-expr_simple ::=
-                literal_simple_string
-              | doc_string
-              | REC bind_set
-              | list
-              | import_stmt
-              | literal
-              | bind_or_select
-              | eval_or_select
-              | defval
-              | attr_path
-              | unary_op expr_op
+add_op_expr ::= op_expr PLUS op_expr
+sub_op_expr ::= op_expr MINUS op_expr
 
-cont_path ::= DOT attr_path
+bool_negation_op_expr ::= NOT op_expr
+set_union_op_expr ::= op_expr UPDATE op_expr { rightAssociative = true }
 
-eval_or_select ::= eval_expr cont_path?
-eval_expr ::= LPAREN expr RPAREN
+lt_op_expr ::= op_expr LT op_expr
+gt_op_expr ::= op_expr GT op_expr
+lte_op_expr ::= op_expr LEQ op_expr
+gte_op_expr ::= op_expr GEQ op_expr
 
-bind_or_select ::= bind_set cont_path?
-bind_set ::= LCURLY binds? RCURLY
+eq_op_expr ::= op_expr EQ op_expr
+neq_op_expr ::= op_expr NEQ op_expr
 
-list ::= LBRAC expr_list RBRAC
-expr_list ::= list_expr*;
-list_expr ::= eval_or_select | bind_or_select | attr_path | literal_simple_string | literal
+and_op_expr ::= op_expr AND op_expr
+or_op_expr ::= op_expr OR op_expr
+implies_op_expr ::= op_expr IMPL op_expr
+paren_op_expr ::= LPAREN expr RPAREN
 
-literal_simple_string ::= QUOT_OPEN string_parts QUOT_CLOSE
-doc_string ::= IND_STRING_OPEN ind_string_parts IND_STRING_CLOSE
+attr ::= ID | DOLLAR_CURLY expr RCURLY | string
 
-literal ::= INT | BOOL | PATH | SPATH | HPATH | URI | STR
-nix_init ::= DOLLAR_CURLY expr RCURLY
+literal ::= ID | INT | BOOL | list | set | path_lit | string { extends="op_expr" }
 
-string_parts ::= (STR | nix_init)*
+list ::= LBRAC expr* RBRAC { extends="literal" }
+set ::= REC? LCURLY binds? RCURLY { extends="literal" }
+path_lit ::= PATH | SPATH | HPATH { extends="literal" }
 
-ind_string_parts ::= (IND_STR | nix_init)*
+string ::= simple_string | ind_string | uri_string { extends = "literal"}
+uri_string ::= URI { extends="string" }
+simple_string ::= QUOT_OPEN (STR | antiquotation)* QUOT_CLOSE { extends="string" }
+ind_string ::= IND_STRING_OPEN (IND_STR | antiquotation)* IND_STRING_CLOSE { extends="string" }
+antiquotation ::= DOLLAR_CURLY expr RCURLY
 
 binds ::= binding+
-binding ::= (require_expr | inherit_attrs | attr_assign) SEMI
 
-require_expr ::= (REQUIRE|REQUIRES|IMPORTS) ASSIGN LBRAC path_expr* RBRAC
-
-import_stmt ::= IMPORT path_expr call_args?
-
-call_args ::= LCURLY binds? RCURLY
-
-path_expr ::= PATH | HPATH | SPATH | list_expr
-
-attr_assign ::= attr_path ASSIGN expr
-
-inherit_attrs ::= INHERIT (LPAREN expr RPAREN)? attrs
-
-attrs ::= attr*
-
-attr_path ::= attr (DOT attr)*
-
-attr ::= ID | QUOT_OPEN string_attr QUOT_CLOSE
-
-string_attr ::= STR
-              | nix_init
-
-params ::= param (COMMA param)*
-
-param ::= defval
-         | ID
-         | ELLIPSIS
-
-defval ::= ID IS expr
+binding ::= (inherit_attrs | attr_assign) SEMI
+inherit_attrs ::= INHERIT (LPAREN expr RPAREN)? attr* { extends = "binding" }
+attr_assign ::= attr (DOT attr)* ASSIGN expr { extends = "binding" }
