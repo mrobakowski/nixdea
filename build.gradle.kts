@@ -9,10 +9,12 @@ import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
 buildscript {
     repositories {
+        mavenCentral()
         maven { setUrl("https://jitpack.io") }
     }
     dependencies {
         classpath("com.github.hurricup:gradle-grammar-kit-plugin:2017.1.1")
+        classpath("org.junit.platform:junit-platform-gradle-plugin:1.0.1")
     }
 }
 
@@ -24,6 +26,8 @@ plugins {
     id("org.jetbrains.intellij") version "0.2.19"
     id("de.undercouch.download") version "3.2.0"
 }
+
+apply { plugin("org.junit.platform.gradle.plugin") }
 
 idea {
     module {
@@ -42,6 +46,16 @@ allprojects {
 
     repositories {
         mavenCentral()
+    }
+
+    dependencies {
+        testCompile("org.junit.jupiter:junit-jupiter-api:5.0.1")
+        testRuntime(
+                "org.junit.jupiter:junit-jupiter-engine:5.0.1",
+                "org.junit.vintage:junit-vintage-engine:4.12.1",
+                "org.junit.platform:junit-platform-launcher:1.0.1",
+                "org.junit.platform:junit-platform-runner:1.0.1"
+        )
     }
 
     idea {

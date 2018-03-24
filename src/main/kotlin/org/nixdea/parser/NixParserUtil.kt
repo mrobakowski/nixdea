@@ -1,4 +1,5 @@
-@file:JvmName("NixParserUtil")
 package org.nixdea.parser
 
-private fun foo() {}
+import com.intellij.lang.parser.GeneratedParserUtilBase
+
+object NixParserUtil: GeneratedParserUtilBase()
