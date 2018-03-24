@@ -2,7 +2,6 @@
   parserClass="org.nixdea.parser.NixParser"
   parserUtilClass="org.nixdea.parser.NixParserUtil"
   extends="com.intellij.extapi.psi.ASTWrapperPsiElement"
-  extendedPin=false
   psiClassPrefix="Nix"
   psiImplClassSuffix="Impl"
   psiPackage="org.nixdea.psi"
@@ -19,7 +18,7 @@
     "static com.intellij.lang.parser.GeneratedParserUtilBase.*"
   ]
 
-  generate=[tokenAccessors="yes"]
+  generate=[visitorValue="T"]
   tokens = [
     space='regexp:\s+'
     comment='regexp:#.*'
@@ -91,7 +90,7 @@
   extends(".*_op_expr")=op_expr
 }
 
-nixFile ::= expr
+nixFile ::= !<<eof>> expr
 
 expr ::= if_expr
        | with_expr
@@ -101,17 +100,21 @@ expr ::= if_expr
 
 if_expr ::= IF expr THEN expr ELSE expr { extends="expr" pin=1 }
 with_expr ::= WITH expr SEMI expr { extends="expr" pin=1 }
-assert_expr ::= ASSERT op_expr SEMI expr { extends="expr" pin=1 }
+assert_expr ::= ASSERT expr SEMI expr { extends="expr" pin=1 }
 let_expr ::= LET binds IN expr { extends="expr" pin=1 }
 
 lambda ::= param COLON expr { extends="op_expr" pin=2 }
-param ::= (ID NAMED param_set | param_set NAMED ID | param_set | ID)
-param_set ::= param_set_strict | param_set_ellipsis
-private param_set_strict ::= LCURLY (param_set_attrs COMMA?)? RCURLY { pin=1 }
-private param_set_ellipsis ::= LCURLY (param_set_attrs COMMA)? ELLIPSIS RCURLY { pin=1 }
-private param_set_attrs ::= param_default (COMMA param_default)*
+param ::= param_starting_with_set | param_starting_with_id
+param_starting_with_set ::= param_set [NAMED ID] { pin=1 }
+param_starting_with_id ::= ID [NAMED param_set] { pin=1 }
+param_set ::= LCURLY param_set_attrs ELLIPSIS? RCURLY { pin=1 }
+private param_set_attrs ::= param_set_attrs_with_recover*
 
-private param_default ::= ID [IS expr]
+private param_set_attrs_with_recover ::= !(COLON | RCURLY | ELLIPSIS | <<eof>>) param_set_attr { pin=1 recoverWhile=param_recover }
+// the part in parens means: it ends with a comma, or, if it doesn't, the next token must be a right curly brace
+param_set_attr ::= ID with_default? (COMMA | &RCURLY)
+private with_default ::= IS expr { pin=1 }
+private param_recover ::= !(RCURLY | ELLIPSIS | ID | COLON)
 
 op_expr ::= lambda
           | literal
@@ -139,50 +142,60 @@ private comp_group ::= lt_op_expr | gt_op_expr | lte_op_expr | gte_op_expr
 private eq_group ::= eq_op_expr | neq_op_expr
 
 select_op_expr ::= op_expr (DOT attr)+ [ OR_KW (paren_op_expr | select_op_expr | literal) ]
-import_op_expr ::= IMPORT op_expr
+import_op_expr ::= IMPORT op_expr { pin=1 }
 call_op_expr ::= op_expr (paren_op_expr | select_op_expr | literal)
 arith_negation_op_expr ::= MINUS op_expr
-attr_test_op_expr ::= op_expr IS attr (DOT attr)*
+attr_test_op_expr ::= op_expr IS attr_path { pin=2 }
 list_concat_op_expr ::= op_expr CONCAT op_expr { rightAssociative=true }
 
-mul_op_expr ::= op_expr TIMES op_expr
-div_op_expr ::= op_expr DIVIDE op_expr
+mul_op_expr ::= op_expr TIMES op_expr { pin=2 }
+div_op_expr ::= op_expr DIVIDE op_expr { pin=2 }
 
-add_op_expr ::= op_expr PLUS op_expr
-sub_op_expr ::= op_expr MINUS op_expr
+add_op_expr ::= op_expr PLUS op_expr { pin=2 }
+sub_op_expr ::= op_expr MINUS op_expr { pin=2 }
 
-bool_negation_op_expr ::= NOT op_expr
-set_union_op_expr ::= op_expr UPDATE op_expr { rightAssociative=true }
+bool_negation_op_expr ::= NOT op_expr { pin=1 }
+set_union_op_expr ::= op_expr UPDATE op_expr { pin=2 rightAssociative=true }
 
-lt_op_expr ::= op_expr LT op_expr
-gt_op_expr ::= op_expr GT op_expr
-lte_op_expr ::= op_expr LEQ op_expr
-gte_op_expr ::= op_expr GEQ op_expr
+lt_op_expr ::= op_expr LT op_expr { pin=2 }
+gt_op_expr ::= op_expr GT op_expr { pin=2 }
+lte_op_expr ::= op_expr LEQ op_expr { pin=2 }
+gte_op_expr ::= op_expr GEQ op_expr { pin=2 }
 
-eq_op_expr ::= op_expr EQ op_expr
-neq_op_expr ::= op_expr NEQ op_expr
+eq_op_expr ::= op_expr EQ op_expr { pin=2 }
+neq_op_expr ::= op_expr NEQ op_expr { pin=2 }
 
-and_op_expr ::= op_expr AND op_expr
-or_op_expr ::= op_expr OR op_expr
-implies_op_expr ::= op_expr IMPL op_expr
-paren_op_expr ::= LPAREN expr RPAREN
+and_op_expr ::= op_expr AND op_expr { pin=2 }
+or_op_expr ::= op_expr OR op_expr { pin=2 }
+implies_op_expr ::= op_expr IMPL op_expr { pin=2 }
+paren_op_expr ::= LPAREN expr RPAREN { pin=1 }
 
-attr ::= ID | DOLLAR_CURLY expr RCURLY | string
+attr ::= ID | antiquotation | string
 
-literal ::= ID | INT | BOOL | list | set | path_lit | string { extends="op_expr" }
+literal ::= ID
+          | INT
+          | BOOL
+          | list
+          | set
+          | path_lit
+          | string
+          { extends="op_expr" }
 
-list ::= LBRAC expr* RBRAC { extends="literal" }
-set ::= REC? LCURLY binds? RCURLY { extends="literal" pin=2 }
 path_lit ::= PATH | SPATH | HPATH { extends="literal" }
+list ::= LBRAC expr* RBRAC { extends="literal" pin=1}
+set ::= rec_set | simple_set { extends="literal" }
+rec_set ::= REC simple_set { pin=1 extends="set" }
+simple_set ::= LCURLY binds? RCURLY !COLON { pin=1 extends="set" }
 
 string ::= simple_string | ind_string | uri_string { extends="literal"}
 uri_string ::= URI { extends="string" }
-simple_string ::= QUOT_OPEN (STR | antiquotation)* QUOT_CLOSE { extends="string" }
-ind_string ::= IND_STRING_OPEN (IND_STR | antiquotation)* IND_STRING_CLOSE { extends="string" }
-antiquotation ::= DOLLAR_CURLY expr RCURLY
+simple_string ::= QUOT_OPEN (STR | antiquotation)* QUOT_CLOSE { pin=1 extends="string" }
+ind_string ::= IND_STRING_OPEN (IND_STR | antiquotation)* IND_STRING_CLOSE { pin=1 extends="string" }
+antiquotation ::= DOLLAR_CURLY expr RCURLY { pin=1 }
 
-binds ::= binding+
-
-binding ::= (inherit_attrs | attr_assign) SEMI
-inherit_attrs ::= INHERIT (LPAREN expr RPAREN)? attr* { extends="binding" }
-attr_assign ::= attr (DOT attr)* ASSIGN expr { extends="binding" }
+binds ::= !IN binding+
+binding ::= (inherit_attrs | attr_assign) { recoverWhile="binding_recover" }
+inherit_attrs ::= INHERIT (LPAREN expr RPAREN)? attr* SEMI { extends="binding" pin=1 }
+attr_path ::= attr (DOT attr)*
+attr_assign ::= attr_path ASSIGN expr SEMI { extends="binding" pin=1 }
+private binding_recover ::= !((attr_path ASSIGN)|INHERIT|IN|RCURLY)
