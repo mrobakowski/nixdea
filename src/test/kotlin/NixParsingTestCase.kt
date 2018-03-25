@@ -9,6 +9,7 @@ class NixParsingTestCase : ParsingTestCase("parsing-test-fixtures", "nix", true,
     override fun getTestDataPath() = "src/test/resources"
     fun testLambda() = doTest(true)
     fun testComposableDerivations() = doTest(true)
+    fun testEmptyList() = doTest(true)
 
     private fun hasError(file: PsiFile): Boolean {
         var hasErrors = false

@@ -14,7 +14,6 @@
   psiImplUtilClass="org.nixdea.parser.NixParserUtil"
 
   parserImports=[
-    "static com.intellij.psi.TokenType.WHITE_SPACE"
     "static com.intellij.lang.parser.GeneratedParserUtilBase.*"
   ]
 
@@ -31,7 +30,6 @@
     LBRAC = '['
     RBRAC = ']'
     DOLLAR_CURLY = '${'
-    DOLLAR = '$'
     IS = '?'
     NAMED = '@'
     COLON = ':'
@@ -80,11 +78,9 @@
     HPATH = "regexp:~(/[a-zA-Z0-9._\-+]+)+"
     URI = "regexp:[a-zA-Z][a-zA-Z0-9+\-.]*:[a-zA-Z0-9%/?:@&=+$,\-_.!~*']+"
 
-    QUOT_OPEN = "\""
-    QUOT_CLOSE = "\""
+    DOUBLE_QUOTE = "\""
 
-    IND_STRING_OPEN = "''"
-    IND_STRING_CLOSE = "''"
+    SINGLE_QUOTE_TWICE= "''"
   ]
 
   extends(".*_op_expr")=op_expr
@@ -119,9 +115,7 @@ param_set_attr ::= ID with_default? (COMMA | &RCURLY)
 private with_default ::= IS expr { pin=1 }
 private param_recover ::= !(RCURLY | ELLIPSIS | ID)
 
-op_expr ::= literal
-          | paren_op_expr
-          | implies_op_expr
+op_expr ::= implies_op_expr
           | or_op_expr
           | and_op_expr
           | eq_group
@@ -135,7 +129,7 @@ op_expr ::= literal
           | arith_negation_op_expr
           | call_op_expr
           | import_op_expr
-          | select_op_expr
+          | select_or_atom
           { extends="expr" }
 
 private mul_group ::= mul_op_expr | div_op_expr
@@ -143,9 +137,12 @@ private add_group ::= add_op_expr | sub_op_expr
 private comp_group ::= lt_op_expr | gt_op_expr | lte_op_expr | gte_op_expr
 private eq_group ::= eq_op_expr | neq_op_expr
 
-select_op_expr ::= op_expr (DOT attr)+ [ OR_KW (paren_op_expr | select_op_expr | literal) ]
+select_or_atom ::= select | atom { extends="op_expr" }
+select ::= atom select_path [ OR_KW select_or_atom ] { pin=2 extends="select_or_atom" }
+private select_path ::= (DOT attr)+ { pin(".*")=1 }
+
 import_op_expr ::= IMPORT op_expr { pin=1 }
-call_op_expr ::= op_expr (paren_op_expr | select_op_expr | literal)
+call_op_expr ::= op_expr (parens | select_or_atom | atom)
 arith_negation_op_expr ::= MINUS op_expr
 attr_test_op_expr ::= op_expr IS attr_path { pin=2 }
 list_concat_op_expr ::= op_expr CONCAT op_expr { rightAssociative=true }
@@ -170,29 +167,33 @@ neq_op_expr ::= op_expr NEQ op_expr { pin=2 }
 and_op_expr ::= op_expr AND op_expr { pin=2 }
 or_op_expr ::= op_expr OR op_expr { pin=2 }
 implies_op_expr ::= op_expr IMPL op_expr { pin=2 }
-paren_op_expr ::= LPAREN expr RPAREN { pin=1 }
 
 attr ::= simple_string | ID | antiquotation | OR_KW
 
-literal ::= ID
-          | INT
-          | BOOL
-          | list
-          | set
-          | path_lit
-          | string
-          { extends="op_expr" }
+atom ::= ID
+       | INT
+       | BOOL
+       | list
+       | set
+       | path_lit
+       | string
+       | parens
+       { extends="op_expr" }
 
-path_lit ::= PATH | SPATH | HPATH { extends="literal" }
-list ::= LBRAC expr* RBRAC { extends="literal" pin=1}
-set ::= rec_set | simple_set { extends="literal" }
+parens ::= LPAREN expr RPAREN { extends="atom" pin=1 }
+path_lit ::= PATH | SPATH | HPATH { extends="atom" }
+list ::= LBRAC list_elem* RBRAC { extends="atom" pin=1 }
+private list_elem ::= !(RBRAC) select_or_atom { pin=1 /*recoverWhile="list_elem_recover"*/ }
+//private list_elem_recover ::= !(RBRAC) // TODO: write proper list recover
+
+set ::= rec_set | simple_set { extends="atom" }
 rec_set ::= REC simple_set { pin=1 extends="set" }
 simple_set ::= LCURLY binds? RCURLY !COLON { pin=1 extends="set" }
 
-string ::= simple_string | ind_string | uri_string { extends="literal"}
+string ::= simple_string | ind_string | uri_string { extends="atom"}
 uri_string ::= URI { extends="string" }
-simple_string ::= QUOT_OPEN (STR | antiquotation)* QUOT_CLOSE { pin=1 extends="string" }
-ind_string ::= IND_STRING_OPEN (IND_STR | antiquotation)* IND_STRING_CLOSE { pin=1 extends="string" }
+simple_string ::= DOUBLE_QUOTE (STR | antiquotation)* DOUBLE_QUOTE { pin=1 extends="string" }
+ind_string ::= SINGLE_QUOTE_TWICE (IND_STR | antiquotation)* SINGLE_QUOTE_TWICE { pin=1 extends="string" }
 antiquotation ::= DOLLAR_CURLY expr RCURLY { pin=1 }
 
 private binds ::= binding_with_recover+
