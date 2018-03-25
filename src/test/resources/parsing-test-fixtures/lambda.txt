@@ -1,0 +1,11 @@
+FILE
+  NixLambdaImpl(LAMBDA)
+    NixParamImpl(PARAM)
+      NixParamStartingWithSetImpl(PARAM_STARTING_WITH_SET)
+        NixParamSetImpl(PARAM_SET)
+          PsiElement({)('{')
+          PsiElement(})('}')
+    PsiElement(:)(':')
+    PsiWhiteSpace(' ')
+    NixLiteralImpl(LITERAL)
+      PsiElement(INT)('1')

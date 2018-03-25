@@ -92,32 +92,34 @@
 
 nixFile ::= !<<eof>> expr
 
-expr ::= if_expr
+expr ::= lambda
+       | if_expr
        | with_expr
        | assert_expr
        | let_expr
        | op_expr
 
+lambda ::= param COLON expr { extends="expr" pin=2 }
 if_expr ::= IF expr THEN expr ELSE expr { extends="expr" pin=1 }
 with_expr ::= WITH expr SEMI expr { extends="expr" pin=1 }
 assert_expr ::= ASSERT expr SEMI expr { extends="expr" pin=1 }
 let_expr ::= LET binds IN expr { extends="expr" pin=1 }
 
-lambda ::= param COLON expr { extends="op_expr" pin=2 }
 param ::= param_starting_with_set | param_starting_with_id
 param_starting_with_set ::= param_set [NAMED ID] { pin=1 }
 param_starting_with_id ::= ID [NAMED param_set] { pin=1 }
 param_set ::= LCURLY param_set_attrs ELLIPSIS? RCURLY { pin=1 }
 private param_set_attrs ::= param_set_attrs_with_recover*
 
-private param_set_attrs_with_recover ::= !(COLON | RCURLY | ELLIPSIS | <<eof>>) param_set_attr { pin=1 recoverWhile=param_recover }
+private param_set_attrs_with_recover ::=
+    !(RCURLY | ELLIPSIS | INHERIT | (attr_path ASSIGN) | <<eof>>) param_set_attr { pin=1 recoverWhile=param_recover }
+
 // the part in parens means: it ends with a comma, or, if it doesn't, the next token must be a right curly brace
 param_set_attr ::= ID with_default? (COMMA | &RCURLY)
 private with_default ::= IS expr { pin=1 }
-private param_recover ::= !(RCURLY | ELLIPSIS | ID | COLON)
+private param_recover ::= !(RCURLY | ELLIPSIS | ID)
 
-op_expr ::= lambda
-          | literal
+op_expr ::= literal
           | paren_op_expr
           | implies_op_expr
           | or_op_expr
@@ -170,7 +172,7 @@ or_op_expr ::= op_expr OR op_expr { pin=2 }
 implies_op_expr ::= op_expr IMPL op_expr { pin=2 }
 paren_op_expr ::= LPAREN expr RPAREN { pin=1 }
 
-attr ::= ID | antiquotation | string
+attr ::= simple_string | ID | antiquotation | OR_KW
 
 literal ::= ID
           | INT
@@ -193,9 +195,11 @@ simple_string ::= QUOT_OPEN (STR | antiquotation)* QUOT_CLOSE { pin=1 extends="s
 ind_string ::= IND_STRING_OPEN (IND_STR | antiquotation)* IND_STRING_CLOSE { pin=1 extends="string" }
 antiquotation ::= DOLLAR_CURLY expr RCURLY { pin=1 }
 
-binds ::= !IN binding+
-binding ::= (inherit_attrs | attr_assign) { recoverWhile="binding_recover" }
-inherit_attrs ::= INHERIT (LPAREN expr RPAREN)? attr* SEMI { extends="binding" pin=1 }
+private binds ::= binding_with_recover+
+private binding_with_recover ::= !(IN | RCURLY) binding { pin=1 recoverWhile="binding_recover" }
+binding ::= (inherit_attrs | attr_assign) SEMI
+inherit_attrs ::= INHERIT (LPAREN expr RPAREN)? attr* { extends="binding" pin=1 }
+attr_assign ::= attr_path ASSIGN expr { extends="binding" pin=1 }
+private binding_recover ::= !((attr_path ASSIGN) | INHERIT | IN | RCURLY)
+
 attr_path ::= attr (DOT attr)*
-attr_assign ::= attr_path ASSIGN expr SEMI { extends="binding" pin=1 }
-private binding_recover ::= !((attr_path ASSIGN)|INHERIT|IN|RCURLY)

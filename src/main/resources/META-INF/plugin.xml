@@ -11,12 +11,25 @@
 
     <depends>com.intellij.modules.lang</depends>
     <extensions defaultExtensionNs="com.intellij">
+
         <fileTypeFactory implementation="org.nixdea.NixFileTypeFactory"/>
-        <lang.parserDefinition language="Nix" implementationClass="org.nixdea.parser.NixParserDefinition" />
+        <internalFileTemplate name="Nix File"/>
+
+        <lang.parserDefinition language="Nix" implementationClass="org.nixdea.parser.NixParserDefinition"/>
+
+        <extendWordSelectionHandler implementation="org.nixdea.ide.wordSelection.NixSelectionHandler"/>
+
+        <lang.syntaxHighlighterFactory language="Nix"
+                                       implementationClass="org.nixdea.ide.highlight.NixHighlighterFactory"/>
+
+        <!-- TODO: add nixpkgs as library root -->
+        <!--<additionalLibraryRootsProvider-->
+                <!--implementation="org.nixdea.project.workspace.NixAdditionalLibraryRootsProvider"/>-->
+
         <!--<lang.syntaxHighlighterFactory language="Nix" implementationClass="org.nixdea.editor.NixSyntaxHighlighterFactory"/>-->
         <!--<lang.braceMatcher language="Nix" implementationClass="org.nixdea.editor.NixBraceMatcher"/>-->
     </extensions>
-    <application-components />
-    <project-components />
-    <actions />
+    <application-components/>
+    <project-components/>
+    <actions/>
 </idea-plugin>
