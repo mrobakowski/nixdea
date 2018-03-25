@@ -13,34 +13,24 @@ import static com.intellij.psi.TokenType.WHITE_SPACE;
     this((java.io.Reader)null);
   }
 
-  private Stack<Integer> state = new Stack<Integer>();
+  private Stack<Integer> stateStack = new Stack<Integer>();
 
-  public void pushState(Integer sst) {
-    state.push(sst);
+  public void pushState(int sst) {
+    stateStack.push(yystate());
     yybegin(sst);
   }
 
-  public int popState() {
-    int sst;
-    try {
-      sst = state.pop();
-    } catch (Exception e) {
-      sst =  YYINITIAL;
+  public void popState() {
+    if (stateStack.size() > 0) {
+        yybegin(stateStack.pop());
+    } else {
+        // Should we do something here other than staying in the current state?
     }
-    yybegin(topState());
-    return sst;
   }
 
-  public int topState() {
-    int sst;
-    try {
-      sst = state.peek();
-    } catch (Exception e) {
-      sst =  YYINITIAL;
-    }
-    return sst;
+  public void onReset() {
+    stateStack.clear();
   }
-
 %}
 
 %public
@@ -48,10 +38,12 @@ import static com.intellij.psi.TokenType.WHITE_SPACE;
 %implements FlexLexer
 %function advance
 %type IElementType
-%xstate STRING IND_STRING
+%xstate STRING IND_STRING INSIDE_STRING_INTERPOLATION
 %unicode
+%eof{
+  stateStack.clear();
+%eof}
 
-EOL=\R
 WHITE_SPACE=\s+
 
 SCOMMENT=#[^\r\n]*
@@ -65,18 +57,17 @@ HPATH=\~("/"[a-zA-Z0-9._\-+]+)+
 URI=[a-zA-Z][a-zA-Z0-9+\-.]*:[a-zA-Z0-9%/?:@&=+$,\-_.!~*']+
 
 %%
-<YYINITIAL> {
+<YYINITIAL, INSIDE_STRING_INTERPOLATION> {
   {WHITE_SPACE}                        { return WHITE_SPACE; }
 
   "="                                  { return ASSIGN; }
   "("                                  { return LPAREN; }
   ")"                                  { return RPAREN; }
-  "{"                                  { pushState(YYINITIAL); return LCURLY; }
+  "{"                                  { pushState(yystate()); return LCURLY; }
   "}"                                  { popState(); return RCURLY; }
   "["                                  { return LBRAC; }
   "]"                                  { return RBRAC; }
-  "${"                                 { pushState(YYINITIAL); return DOLLAR_CURLY; }
-  "$"                                  { return DOLLAR; }
+  "${"                                 { pushState(yystate()); return DOLLAR_CURLY; }
   "?"                                  { return IS; }
   "@"                                  { return NAMED; }
   ":"                                  { return COLON; }
@@ -111,8 +102,8 @@ URI=[a-zA-Z][a-zA-Z0-9+\-.]*:[a-zA-Z0-9%/?:@&=+$,\-_.!~*']+
   "..."                                { return ELLIPSIS; }
   "inherit"                            { return INHERIT; }
   "import"                             { return IMPORT; }
-  "\""                                 { pushState(STRING); return QUOT_OPEN; }
-  "''"                                 { pushState(IND_STRING); return IND_STRING_OPEN; }
+  "\""                                 { pushState(STRING); return DOUBLE_QUOTE; }
+  "''"                                 { pushState(IND_STRING); return SINGLE_QUOTE_TWICE; }
 
   {SCOMMENT}                           { return SCOMMENT; }
   {MCOMMENT}                           { return MCOMMENT; }
@@ -129,8 +120,8 @@ URI=[a-zA-Z][a-zA-Z0-9+\-.]*:[a-zA-Z0-9%/?:@&=+$,\-_.!~*']+
   ([^$\"\\]|\$[^\{\"\\])+              { return STR; }
   ([^$\"]|\$[^\{\"])*\$\"              { yypushback(1); return STR; }
   "\\".                                { return STR; }
-  "${"                                 { pushState(YYINITIAL); return DOLLAR_CURLY; }
-  "\""                                 { popState(); return QUOT_CLOSE; }
+  "${"                                 { pushState(INSIDE_STRING_INTERPOLATION); return DOLLAR_CURLY; }
+  "\""                                 { popState(); return DOUBLE_QUOTE; }
 }
 
 <IND_STRING> {
@@ -140,9 +131,9 @@ URI=[a-zA-Z][a-zA-Z0-9+\-.]*:[a-zA-Z0-9%/?:@&=+$,\-_.!~*']+
   "'''"                                { return IND_STR; }
   "''\\".                              { return IND_STR; }
   "$$"                                 { return IND_STR; }
-  "${"                                 { pushState(YYINITIAL); return DOLLAR_CURLY; }
-  "''"                                 { popState(); return IND_STRING_CLOSE; }
+  "${"                                 { pushState(INSIDE_STRING_INTERPOLATION); return DOLLAR_CURLY; }
+  "''"                                 { popState(); return SINGLE_QUOTE_TWICE; }
   "'"                                  { return IND_STR; }
 }
 
-[^] { return BAD_CHARACTER; }
+<YYINITIAL, STRING, IND_STRING> [^] { return BAD_CHARACTER; }
