@@ -84,6 +84,7 @@
   ]
 
   extends(".*_op_expr")=op_expr
+  implements("lambda|let_expr|rec_set")="org.nixdea.psi.HasDeclarations"
 }
 
 nixFile ::= !<<eof>> expr
@@ -95,15 +96,16 @@ expr ::= lambda
        | let_expr
        | op_expr
 
-lambda ::= param COLON expr { extends="expr" pin=2 }
+lambda ::= param COLON expr { extends="expr" pin=2 mixin="org.nixdea.psi.mixins.NixLambdaImplMixin" }
 if_expr ::= IF expr THEN expr ELSE expr { extends="expr" pin=1 }
 with_expr ::= WITH expr SEMI expr { extends="expr" pin=1 }
 assert_expr ::= ASSERT expr SEMI expr { extends="expr" pin=1 }
-let_expr ::= LET binds IN expr { extends="expr" pin=1 }
+let_expr ::= LET binds IN expr { extends="expr" pin=1 mixin="org.nixdea.psi.mixins.NixLetExprImplMixin" }
 
 param ::= param_starting_with_set | param_starting_with_id
-param_starting_with_set ::= param_set [NAMED ID] { pin=1 }
-param_starting_with_id ::= ID [NAMED param_set] { pin=1 }
+param_starting_with_set ::= param_set [NAMED param_set_id] { pin=1 }
+param_starting_with_id ::= param_set_id [NAMED param_set] { pin=1 }
+param_set_id ::= ID { mixin="org.nixdea.psi.mixins.NixNameOwnerMixin" }
 param_set ::= LCURLY param_set_attrs ELLIPSIS? RCURLY { pin=1 }
 private param_set_attrs ::= param_set_attrs_with_recover*
 
@@ -111,7 +113,7 @@ private param_set_attrs_with_recover ::=
     !(RCURLY | ELLIPSIS | INHERIT | (attr_path ASSIGN) | <<eof>>) param_set_attr { pin=1 recoverWhile=param_recover }
 
 // the part in parens means: it ends with a comma, or, if it doesn't, the next token must be a right curly brace
-param_set_attr ::= ID with_default? (COMMA | &RCURLY)
+param_set_attr ::= ID with_default? (COMMA | &RCURLY) { mixin="org.nixdea.psi.mixins.NixNameOwnerMixin" }
 private with_default ::= IS expr { pin=1 }
 private param_recover ::= !(RCURLY | ELLIPSIS | ID)
 
@@ -170,15 +172,19 @@ implies_op_expr ::= op_expr IMPL op_expr { pin=2 }
 
 attr ::= simple_string | ID | antiquotation | OR_KW
 
-atom ::= ID
-       | INT
-       | BOOL
+atom ::= ref
+       | integer
+       | boolean
        | list
        | set
        | path_lit
        | string
        | parens
        { extends="op_expr" }
+
+ref ::= ID { mixin="org.nixdea.psi.mixins.NixRefImplMixin" extends="atom" }
+integer ::= INT { extends="atom" }
+boolean ::= BOOL { extends="atom" }
 
 parens ::= LPAREN expr RPAREN { extends="atom" pin=1 }
 path_lit ::= PATH | SPATH | HPATH { extends="atom" }
@@ -187,7 +193,7 @@ private list_elem ::= !(RBRAC) select_or_atom { pin=1 /*recoverWhile="list_elem_
 //private list_elem_recover ::= !(RBRAC) // TODO: write proper list recover
 
 set ::= rec_set | simple_set { extends="atom" }
-rec_set ::= REC simple_set { pin=1 extends="set" }
+rec_set ::= REC simple_set { pin=1 extends="set" mixin="org.nixdea.psi.mixins.NixRecSetImplMixin" }
 simple_set ::= LCURLY binds? RCURLY !COLON { pin=1 extends="set" }
 
 string ::= simple_string | ind_string | uri_string { extends="atom"}
@@ -198,9 +204,9 @@ antiquotation ::= DOLLAR_CURLY expr RCURLY { pin=1 }
 
 private binds ::= binding_with_recover+
 private binding_with_recover ::= !(IN | RCURLY) binding { pin=1 recoverWhile="binding_recover" }
-binding ::= (inherit_attrs | attr_assign) SEMI
-inherit_attrs ::= INHERIT (LPAREN expr RPAREN)? attr* { extends="binding" pin=1 }
-attr_assign ::= attr_path ASSIGN expr { extends="binding" pin=1 }
+binding ::= inherit_attrs | attr_assign
+inherit_attrs ::= INHERIT (LPAREN expr RPAREN)? attr* SEMI { extends="binding" pin=1 }
+attr_assign ::= attr_path ASSIGN expr SEMI { extends="binding" pin=1 mixin="org.nixdea.psi.mixins.NixNameOwnerMixin" }
 private binding_recover ::= !((attr_path ASSIGN) | INHERIT | IN | RCURLY)
 
 attr_path ::= attr (DOT attr)*
