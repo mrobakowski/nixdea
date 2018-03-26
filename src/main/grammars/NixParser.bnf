@@ -187,7 +187,7 @@ integer ::= INT { extends="atom" }
 boolean ::= BOOL { extends="atom" }
 
 parens ::= LPAREN expr RPAREN { extends="atom" pin=1 }
-path_lit ::= PATH | SPATH | HPATH { extends="atom" }
+path_lit ::= PATH | SPATH | HPATH { extends="atom" mixin="org.nixdea.psi.mixins.NixPathLitImplMixin" }
 list ::= LBRAC list_elem* RBRAC { extends="atom" pin=1 }
 private list_elem ::= !(RBRAC) select_or_atom { pin=1 /*recoverWhile="list_elem_recover"*/ }
 //private list_elem_recover ::= !(RBRAC) // TODO: write proper list recover
