@@ -14,7 +14,6 @@ buildscript {
     }
     dependencies {
         classpath("com.github.hurricup:gradle-grammar-kit-plugin:2017.1.1")
-        classpath("org.junit.platform:junit-platform-gradle-plugin:1.0.1")
     }
 }
 
@@ -22,12 +21,10 @@ val CI = System.getenv("CI") != null
 
 plugins {
     idea
-    kotlin("jvm") version "1.2.30"
+    kotlin("jvm") version "1.2.31"
     id("org.jetbrains.intellij") version "0.2.19"
     id("de.undercouch.download") version "3.2.0"
 }
-
-apply { plugin("org.junit.platform.gradle.plugin") }
 
 idea {
     module {
@@ -46,16 +43,6 @@ allprojects {
 
     repositories {
         mavenCentral()
-    }
-
-    dependencies {
-        testCompile("org.junit.jupiter:junit-jupiter-api:5.0.1")
-        testRuntime(
-                "org.junit.jupiter:junit-jupiter-engine:5.0.1",
-                "org.junit.vintage:junit-vintage-engine:4.12.1",
-                "org.junit.platform:junit-platform-launcher:1.0.1",
-                "org.junit.platform:junit-platform-runner:1.0.1"
-        )
     }
 
     idea {
@@ -100,8 +87,7 @@ allprojects {
 }
 
 project(":") {
-    val clionVersion = prop("clionVersion")
-    version = "0.2.0.${prop("buildNumber")}"
+    version = "0.0.1.${prop("buildNumber")}"
     intellij {
         pluginName = "nixdea"
         setPlugins("idea.plugin.psiviewer:3.28.93")
@@ -126,21 +112,8 @@ project(":") {
         purgeOldFiles = true
     }
 
-    val downloadClion = task<Download>("downloadClion") {
-        onlyIf { !file("${project.projectDir}/deps/clion-$clionVersion.tar.gz").exists() }
-        src("https://download.jetbrains.com/cpp/CLion-$clionVersion.tar.gz")
-        dest(file("${project.projectDir}/deps/clion-$clionVersion.tar.gz"))
-    }
-
-    val unpackClion = task<Copy>("unpackClion") {
-        onlyIf { !file("${project.projectDir}/deps/clion-$clionVersion").exists() }
-        from(tarTree("deps/clion-$clionVersion.tar.gz"))
-        into(file("${project.projectDir}/deps"))
-        dependsOn(downloadClion)
-    }
-
     tasks.withType<KotlinCompile> {
-        dependsOn(generateNixLexer, generateNixParser, unpackClion)
+        dependsOn(generateNixLexer, generateNixParser)
     }
 
     tasks.withType<Test> {
@@ -150,7 +123,6 @@ project(":") {
     }
 
     task("resolveDependencies") {
-        dependsOn(unpackClion)
         doLast {
             rootProject.allprojects
                     .map { it.configurations }

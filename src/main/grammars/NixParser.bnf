@@ -144,7 +144,7 @@ select ::= atom select_path [ OR_KW select_or_atom ] { pin=2 extends="select_or_
 private select_path ::= (DOT attr)+ { pin(".*")=1 }
 
 import_op_expr ::= IMPORT op_expr { pin=1 }
-call_op_expr ::= op_expr (parens | select_or_atom | atom)
+call_op_expr ::= op_expr (select_or_atom) // this is weird, parsing fails with no parens here
 arith_negation_op_expr ::= MINUS op_expr
 attr_test_op_expr ::= op_expr IS attr_path { pin=2 }
 list_concat_op_expr ::= op_expr CONCAT op_expr { rightAssociative=true }
