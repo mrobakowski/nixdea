@@ -7,5 +7,5 @@ FILE
           PsiElement(})('}')
     PsiElement(:)(':')
     PsiWhiteSpace(' ')
-    NixLiteralImpl(LITERAL)
+    NixIntegerImpl(INTEGER)
       PsiElement(INT)('1')
