@@ -51,7 +51,7 @@ val NIX_STR_TOKENS = tokenSetOf(
         DOUBLE_QUOTE,
         PATH,
         SINGLE_QUOTE_TWICE,
-        SPATH,
+        HPATH,
         STR,
         URI
 )
